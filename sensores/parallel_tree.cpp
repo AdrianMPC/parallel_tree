@@ -14,7 +14,7 @@ double ParallelTree::calculateMaxAverageInternal(SensorTree* node_ptr) {
   // suma los datos del sensor en el nodo actual
   double sum = 0.0;
   int cont = 0;
-  #pragma omp parallel for private(value) reduction(+:sum, cont)
+  #pragma omp parallel for reduction(+:sum, cont)
   for(int value : node_ptr->sensor_data) {
     if(value > 0.0) {
       sum += value;
