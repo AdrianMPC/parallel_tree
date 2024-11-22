@@ -33,10 +33,6 @@ double ParallelTree::calculateMaxAverageInternal(SensorTree* node_ptr) {
     #pragma omp section
     {
       max_avg_left = calculateMaxAverageInternal(node_ptr->left);
-    }
-
-    #pragma omp section
-    {
       max_avg_right = calculateMaxAverageInternal(node_ptr->right);
     }
   }
