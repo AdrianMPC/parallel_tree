@@ -35,6 +35,7 @@ double ParallelTree::calculateMaxAverageInternal(SensorTree* node_ptr) {
   {
     if (id_thread == 0)
     {
+      // :v
       #pragma omp task shared(max_avg_left)
       max_avg_left = calculateMaxAverageInternal(node_ptr->left);
       
