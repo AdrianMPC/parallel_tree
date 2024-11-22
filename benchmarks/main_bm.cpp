@@ -9,7 +9,7 @@
 static SequentialTree* s_arbol_datos = nullptr;
 static ParallelTree* p_arbol_datos = nullptr;
 static const int VALOR_MEDIO = 10;
-static const int NUMERO_ELEMENTOS = 5;
+static const int NUMERO_ELEMENTOS = 84;
 static const int NUMERO_VECTORES = 50;
 
 void inicializa() {
