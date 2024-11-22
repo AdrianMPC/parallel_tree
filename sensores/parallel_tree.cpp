@@ -14,8 +14,6 @@ double ParallelTree::calculateMaxAverageInternal(SensorTree* node_ptr) {
   // suma los datos del sensor en el nodo actual
   double sum = 0.0;
   int cont = 0;
-  int id_thread = omp_get_thread_num();
-  
   #pragma omp parallel for reduction(+:sum, cont)
   for(int value : node_ptr->sensor_data) {
     if(value > 0.0) {
@@ -31,22 +29,19 @@ double ParallelTree::calculateMaxAverageInternal(SensorTree* node_ptr) {
   double max_avg_right = 0.0;
 
   // llamadas recursivas para los hijos
-  if (id_thread == 0)
+  #pragma omp parallel
   {
-    #pragma omp parallel
+    #pragma omp single
     {
-    // :v
-      #pragma omp task shared(max_avg_left)
-      max_avg_left = calculateMaxAverageInternal(node_ptr->left);
-      
-      #pragma omp task shared(max_avg_right)
-      max_avg_right = calculateMaxAverageInternal(node_ptr->right);
+        // Lanzamos las tareas para los subárboles izquierdo y derecho
+        #pragma omp task shared(max_avg_left)
+        max_avg_left = calculateMaxAverageInternal(node_ptr->left);
+        
+        #pragma omp task shared(max_avg_right)
+        max_avg_right = calculateMaxAverageInternal(node_ptr->right);
 
-      #pragma omp taskwait
+        #pragma omp taskwait
     }
-  } else {
-    max_avg_left = calculateMaxAverageInternal(node_ptr->left);
-    max_avg_right = calculateMaxAverageInternal(node_ptr->right);
   }
   // retornamos el máximo del promedio del nodo y sus hijos
   return std::max(std::max(current_avg, max_avg_left), max_avg_right);
