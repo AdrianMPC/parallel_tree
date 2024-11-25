@@ -3,14 +3,14 @@
 
 ParallelTree::ParallelTree(const std::vector<double>& data)
     : SensorTree(data), contadorEstaciones(1) {
-  // Limitar el número de hilos para controlar el uso de memoria
+  // Usar un número de hilos controlado
   omp_set_num_threads(4);
 }
 
 double ParallelTree::calculateMaxAverage() {
   double result = 0.0;
 
-  // Paralelizamos desde la raíz utilizando una única región paralela
+  // Mantener una única región paralela desde la raíz
   #pragma omp parallel
   {
     #pragma omp single nowait
@@ -23,12 +23,9 @@ double ParallelTree::calculateMaxAverage() {
 double ParallelTree::calculateMaxAverageInternal(SensorTree* node_ptr) {
   if(node_ptr == nullptr) return 0.0;
 
-  // Suma los datos del sensor en el nodo actual sin paralelización (costo bajo)
+  // Suma de datos del sensor en el nodo actual (secundario, mantener secuencial)
   double sum = 0.0;
   int cont = 0;
-
-  // Iterar sobre los datos del sensor en paralelo
-  #pragma omp parallel for reduction(+:sum, cont)
   for(size_t i = 0; i < node_ptr->sensor_data.size(); ++i) {
     if(node_ptr->sensor_data[i] > 0.0) {
       sum += node_ptr->sensor_data[i];
@@ -41,8 +38,8 @@ double ParallelTree::calculateMaxAverageInternal(SensorTree* node_ptr) {
   double max_avg_left = 0.0;
   double max_avg_right = 0.0;
 
-  // Utilizar secciones paralelas para calcular en paralelo los hijos
-  #pragma omp parallel sections
+  // Evitar tareas innecesarias, solo paralelizar ramas si son no triviales
+  #pragma omp parallel sections if(node_ptr->left || node_ptr->right)
   {
     #pragma omp section
     {
@@ -61,26 +58,4 @@ double ParallelTree::calculateMaxAverageInternal(SensorTree* node_ptr) {
 
   // Retornamos el máximo del promedio del nodo y sus hijos
   return std::max(std::max(current_avg, max_avg_left), max_avg_right);
-}
-
-void ParallelTree::insert(const std::vector<double>& data) {
-  insertInternal(this, data);
-  contadorEstaciones++;
-}
-
-void ParallelTree::insertInternal(SensorTree* node_ptr,
-                                  const std::vector<double>& data) {
-  if(node_ptr == nullptr) {
-    node_ptr = new ParallelTree(data);
-    return;
-  } else if(node_ptr->left == nullptr) {
-    node_ptr->left = new ParallelTree(data);
-    return;
-  } else if(node_ptr->right == nullptr) {
-    node_ptr->right = new ParallelTree(data);
-    return;
-  }
-
-  if(node_ptr->left != nullptr) insertInternal(node_ptr->left, data);
-  if(node_ptr->right != nullptr) insertInternal(node_ptr->right, data);
 }
