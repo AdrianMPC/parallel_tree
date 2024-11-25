@@ -1,58 +1,62 @@
 #include "parallel_tree.h"
 #include <omp.h>
 #include <algorithm>
+#include <vector>
 
 ParallelTree::ParallelTree(const std::vector<double>& data)
     : SensorTree(data), contadorEstaciones(1) {
-  // Usar un número de hilos controlado
+  // Configurar un número razonable de hilos
   omp_set_num_threads(4);
 }
 
 double ParallelTree::calculateMaxAverage() {
-  double result = 0.0;
+  double maxAverage = 0.0;
 
-  // Mantener una única región paralela desde la raíz
+  // Región paralela con una sola tarea inicial
   #pragma omp parallel
   {
-    #pragma omp single nowait
-    result = calculateMaxAverageInternal(this);
+    #pragma omp single
+    {
+      maxAverage = calculateMaxAverageInternal(this);
+    }
   }
 
-  return result;
+  return maxAverage;
 }
 
 double ParallelTree::calculateMaxAverageInternal(SensorTree* node_ptr) {
   if (node_ptr == nullptr) return 0.0;
 
-  // Suma de datos del sensor en el nodo actual
+  // Calcular el promedio del nodo actual
   double sum = 0.0;
   int count = 0;
-  for (size_t i = 0; i < node_ptr->sensor_data.size(); ++i) {
-    if (node_ptr->sensor_data[i] > 0.0) {
-      sum += node_ptr->sensor_data[i];
-      count += 1;
+
+  for (double value : node_ptr->sensor_data) {
+    if (value > 0.0) {
+      sum += value;
+      count++;
     }
   }
 
-  double current_avg = (count > 0) ? sum / (double)count : 0.0;
+  double currentAverage = (count > 0) ? sum / count : 0.0;
 
-  double max_avg_left = 0.0;
-  double max_avg_right = 0.0;
+  double maxLeft = 0.0;
+  double maxRight = 0.0;
 
-  // Paralelizar ramas no triviales
-  #pragma omp task shared(max_avg_left) if (node_ptr->left != nullptr)
+  // Crear tareas para las ramas izquierda y derecha
+  #pragma omp task shared(maxLeft) if (node_ptr->left != nullptr)
   {
-    max_avg_left = calculateMaxAverageInternal(node_ptr->left);
+    maxLeft = calculateMaxAverageInternal(node_ptr->left);
   }
 
-  #pragma omp task shared(max_avg_right) if (node_ptr->right != nullptr)
+  #pragma omp task shared(maxRight) if (node_ptr->right != nullptr)
   {
-    max_avg_right = calculateMaxAverageInternal(node_ptr->right);
+    maxRight = calculateMaxAverageInternal(node_ptr->right);
   }
 
-  // Esperar a que todas las tareas terminen
+  // Esperar a que todas las tareas finalicen
   #pragma omp taskwait
 
-  // Retornar el máximo del promedio del nodo actual y sus hijos
-  return std::max({current_avg, max_avg_left, max_avg_right});
+  // Retornar el máximo entre el promedio actual y los máximos de las ramas
+  return std::max({currentAverage, maxLeft, maxRight});
 }
