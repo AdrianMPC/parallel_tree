@@ -2,11 +2,14 @@
 #include <omp.h>
 
 ParallelTree::ParallelTree(const std::vector<double>& data)
-    : SensorTree(data), contadorEstaciones(1) {}
+    : SensorTree(data), contadorEstaciones(1) {
+  // Limitar el número de hilos para controlar el uso de memoria
+  omp_set_num_threads(4);
+}
 
 double ParallelTree::calculateMaxAverage() {
   double result = 0.0;
-  
+
   // Paralelizamos desde la raíz utilizando una única región paralela
   #pragma omp parallel
   {
@@ -20,10 +23,12 @@ double ParallelTree::calculateMaxAverage() {
 double ParallelTree::calculateMaxAverageInternal(SensorTree* node_ptr) {
   if(node_ptr == nullptr) return 0.0;
 
-  // suma los datos del sensor en el nodo actual sin paralelización (costo bajo)
+  // Suma los datos del sensor en el nodo actual sin paralelización (costo bajo)
   double sum = 0.0;
   int cont = 0;
 
+  // Iterar sobre los datos del sensor en paralelo
+  #pragma omp parallel for reduction(+:sum, cont)
   for(size_t i = 0; i < node_ptr->sensor_data.size(); ++i) {
     if(node_ptr->sensor_data[i] > 0.0) {
       sum += node_ptr->sensor_data[i];
@@ -36,15 +41,22 @@ double ParallelTree::calculateMaxAverageInternal(SensorTree* node_ptr) {
   double max_avg_left = 0.0;
   double max_avg_right = 0.0;
 
-  // Solo crear tareas si hay suficiente profundidad en el árbol
-  if (node_ptr->left != nullptr || node_ptr->right != nullptr) {
-    #pragma omp task shared(max_avg_left) if(node_ptr->left != nullptr)
-    max_avg_left = calculateMaxAverageInternal(node_ptr->left);
+  // Utilizar secciones paralelas para calcular en paralelo los hijos
+  #pragma omp parallel sections
+  {
+    #pragma omp section
+    {
+      if (node_ptr->left != nullptr) {
+        max_avg_left = calculateMaxAverageInternal(node_ptr->left);
+      }
+    }
 
-    #pragma omp task shared(max_avg_right) if(node_ptr->right != nullptr)
-    max_avg_right = calculateMaxAverageInternal(node_ptr->right);
-
-    #pragma omp taskwait
+    #pragma omp section
+    {
+      if (node_ptr->right != nullptr) {
+        max_avg_right = calculateMaxAverageInternal(node_ptr->right);
+      }
+    }
   }
 
   // Retornamos el máximo del promedio del nodo y sus hijos
