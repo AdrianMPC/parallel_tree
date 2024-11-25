@@ -5,7 +5,13 @@ ParallelTree::ParallelTree(const std::vector<double>& data)
     : SensorTree(data), contadorEstaciones(1) {}
 
 double ParallelTree::calculateMaxAverage() {
-  return calculateMaxAverageInternal(this);
+  double result = 0.0;
+  #pragma omp parallel
+  {
+    #pragma omp single
+    result = calculateMaxAverageInternal(this);
+  }
+  return result;
 }
 
 double ParallelTree::calculateMaxAverageInternal(SensorTree* node_ptr) {
@@ -16,7 +22,6 @@ double ParallelTree::calculateMaxAverageInternal(SensorTree* node_ptr) {
   int cont = 0;
 
   // Paralelizar la suma de datos del sensor usando OpenMP
-  #pragma omp parallel for reduction(+:sum, cont)
   for(size_t i = 0; i < node_ptr->sensor_data.size(); ++i) {
     if(node_ptr->sensor_data[i] > 0.0) {
       sum += node_ptr->sensor_data[i];
@@ -31,15 +36,14 @@ double ParallelTree::calculateMaxAverageInternal(SensorTree* node_ptr) {
   double max_avg_left = 0.0;
   double max_avg_right = 0.0;
 
-  // Llamadas recursivas para los hijos, paralelizadas con OpenMP
-  #pragma omp parallel sections
-  {
-    #pragma omp section
-    max_avg_left = calculateMaxAverageInternal(node_ptr->left);
+  // Paralelizamos la recursividad utilizando tareas
+  #pragma omp task shared(max_avg_left)
+  max_avg_left = calculateMaxAverageInternal(node_ptr->left);
 
-    #pragma omp section
-    max_avg_right = calculateMaxAverageInternal(node_ptr->right);
-  }
+  #pragma omp task shared(max_avg_right)
+  max_avg_right = calculateMaxAverageInternal(node_ptr->right);
+
+  #pragma omp taskwait
 
   // Retornamos el máximo del promedio del nodo y sus hijos
   return std::max(std::max(current_avg, max_avg_left), max_avg_right);
